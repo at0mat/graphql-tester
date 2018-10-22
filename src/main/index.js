@@ -6,7 +6,8 @@ export function tester({
     server,
     method = 'POST',
     contentType = 'application/graphql',
-    authorization = null
+    authorization = null,
+    headers
 }) {
     return (query, requestOptions) => {
         return new Promise((resolve, reject) => {
@@ -31,22 +32,34 @@ export function tester({
             }
         }).then(({url, server}) => {
             return new Promise((resolve, reject) => {
-                let headers = {
-                    'Content-Type': contentType,
+                let baseHeaders = {
+                    'Content-Type': contentType
                 };
-                if (authorization !== null) headers['Authorization'] = authorization;
-                let options = { method, uri: url, headers, body: query };
+                if (authorization !== null) baseHeaders['Authorization'] = authorization;
+                let extHeaders = Object.assign(baseHeaders, headers);
+                if (requestOptions && requestOptions.hasOwnProperty('headers')) {
+                    // requestOptions.headers takes precedence on header keys
+                    extHeaders = Object.assign(extHeaders, requestOptions.headers);
+                    // now it's merged, don't wholly override with Object.assign into options as below
+                    delete requestOptions.headers;
+                }
+                let options = {
+                    method,
+                    uri: url,
+                    extHeaders,
+                    body: query
+                };
                 options = Object.assign(options, requestOptions);
                 request(options, (error, message, body) => {
                     if (server && typeof(server.shutdown) === 'function') {
                         server.shutdown();
                     }
-                    
+
                     if (error) {
                         reject(error);
                     } else {
                         const result = JSON.parse(body);
-                        
+
                         resolve({
                             raw: body,
                             data: result.data,
